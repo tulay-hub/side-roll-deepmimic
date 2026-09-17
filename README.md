@@ -136,7 +136,7 @@ docs/                              # 奖励证据和复现记录
 训练入口：
 
 ```bash
-./projects/05_side_roll/scripts/train.sh --headless --num_envs 4096 --max_iterations 30000
+./scripts/train.sh --headless --num_envs 4096 --max_iterations 30000
 ```
 
 训练使用 RSI，从参考动作随机帧初始化；PLAY 关闭随机初始化以便复现固定回放。验收时同时检查 159-D/21-D、数据到 policy 的重排、侧滚接触、0.8 m 偏差终止、摩擦/质量随机化和动作末段起立。
@@ -190,4 +190,4 @@ Base-contact and bad-orientation terminations are disabled for the roll, minimum
 
 ## Reproduction and deployment
 
-Run `./projects/05_side_roll/scripts/train.sh --headless --num_envs 4096 --max_iterations 30000` in the local Isaac Lab environment. Use random reference initialization for training and fixed initialization for PLAY. Keep motion order, policy order, quaternion convention, XML/mesh, action scale, replay evidence, and hardware safety limits together. MuJoCo qpos uses `wxyz`; GMR/deployment CSV uses `xyzw`.
+Run `./scripts/train.sh --headless --num_envs 4096 --max_iterations 30000` in the local Isaac Lab environment. Use random reference initialization for training and fixed initialization for PLAY. Keep motion order, policy order, quaternion convention, XML/mesh, action scale, replay evidence, and hardware safety limits together. MuJoCo qpos uses `wxyz`; GMR/deployment CSV uses `xyzw`.
