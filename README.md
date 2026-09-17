@@ -1,4 +1,4 @@
-<p align="center"><a href="#zh">🇨🇳 中文</a> &nbsp;|&nbsp; <a href="#en">🇬🇧 English</a></p>
+<p align="center"><a href="#zh">中文</a> &nbsp;|&nbsp; <a href="#en">English</a></p>
 <a id="zh"></a>
 
 # 05 · 翻滚（Side Roll）
@@ -12,6 +12,14 @@
 - policy：`159 -> 21`
 - 参考动作：`side_roll_R_002__A415_M_100hz_lens110`
 - 导出包：`exports/versions/Lens110_SideRoll_Sim2Real_v1_20260910_policy27500`
+
+## 训练架构和演示
+
+159-D DeepMimic/PPO、数据顺序重排、侧滚奖励、合法横躺终止和从仿真到真机的完整流程见 [`docs/TRAINING_ARCHITECTURE.md`](docs/TRAINING_ARCHITECTURE.md)。
+
+<video controls width="720" src="docs/media/side-roll-to-stand-demo.mp4"></video>
+
+[打开或下载翻滚站立演示视频](docs/media/side-roll-to-stand-demo.mp4)
 
 ## 目录
 
