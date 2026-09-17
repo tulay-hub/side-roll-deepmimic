@@ -1,3 +1,6 @@
+<p align="center"><a href="#zh">🇨🇳 中文</a> &nbsp;|&nbsp; <a href="#en">🇬🇧 English</a></p>
+<a id="zh"></a>
+
 # 05 · 翻滚（Side Roll）
 
 ## 项目定位
@@ -36,6 +39,8 @@
 根/关键点偏差收紧到 `0.8 m`，并加入参考静止段的 `standing_still=-2.0`，避免站立阶段蹭步。摩擦随机
 `0.5..1.5`、骨盆质量 `+-0.5 kg` 用于覆盖滑动条件。完整说明见
 [`docs/REWARD_FRAMEWORKS.md`](docs/REWARD_FRAMEWORKS.md)。
+
+<a id="en"></a>
 
 ## English
 
