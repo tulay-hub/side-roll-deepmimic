@@ -3,14 +3,6 @@
 
 # 翻滚训练架构（159-D DeepMimic）
 
-## 训练权重如何理解 / Interpreting training weights
-
-本文按本仓库当前代码说明训练机制；已有策略的复现参数以对应 run 的 `params/env.yaml`、`params/agent.yaml` 和部署配置为准。奖励混合系数、逐项环境奖励权重、优化器 loss 系数、专家样本比例以及课程采样范围是不同概念。
-
-混合系数可以写成 85%/15% 这样的配置比例，但不能代表训练过程中实际累计奖励贡献；单项 reward 的数值范围、门控、控制步长和出现频率都不同。需要实际贡献占比时，应统计同一 run 中每项加权回报，而不是把配置权重归一化成百分比。
-
-Configuration mixing coefficients are not measured reward contributions. Environment weights, optimizer coefficients, expert sampling and curriculum schedules describe different parts of training. Reproduce a saved policy with its own run snapshots.
-
 ## 参考动作指导、残差控制与 PPO 系数
 
 DeepMimic 通过明确的参考误差奖励进行专家动作跟踪，训练以参考帧初始化（RSI），再由 PPO 学习参考姿态上的残差修正。全身 H 与侧滚都使用 `ReferenceJointPositionAction`：
@@ -151,6 +143,14 @@ preserve_order = True
 终止不是普通奖励项。侧滚显式关闭 `base_contact` 和 `bad_orientation`，因为滚地中的躯干接触/横躺是合法状态；`base_height` 下限降到 `0.02 m`。同时保留 root 和 key-body 相对参考偏差终止，阈值收紧到 `0.8 m`，这样“躺平不动”不会成为合法最优。
 
 训练随机化 static/dynamic friction 为 `0.5..1.5`，骨盆质量扰动为 `±0.5 kg`，用于覆盖 sim2sim 的滑动和负载差异。这里没有 AMP style reward，也没有 VAE loss；优化目标就是 由 DeepMimic task reward 形成回报和 advantage，再优化 PPO loss。
+
+## 训练权重如何理解 / Interpreting training weights
+
+本文按本仓库当前代码说明训练机制；已有策略的复现参数以对应 run 的 `params/env.yaml`、`params/agent.yaml` 和部署配置为准。奖励混合系数、逐项环境奖励权重、优化器 loss 系数、专家样本比例以及课程采样范围是不同概念。
+
+混合系数可以写成 85%/15% 这样的配置比例，但不能代表训练过程中实际累计奖励贡献；单项 reward 的数值范围、门控、控制步长和出现频率都不同。需要实际贡献占比时，应统计同一 run 中每项加权回报，而不是把配置权重归一化成百分比。
+
+Configuration mixing coefficients are not measured reward contributions. Environment weights, optimizer coefficients, expert sampling and curriculum schedules describe different parts of training. Reproduce a saved policy with its own run snapshots.
 
 ## 8. 训练、导出和回放
 
