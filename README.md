@@ -3,6 +3,36 @@
 
 # 翻滚训练架构（159-D DeepMimic）
 
+## 训练权重如何理解 / Interpreting training weights
+
+本文按本仓库当前代码说明训练机制；已有策略的复现参数以对应 run 的 `params/env.yaml`、`params/agent.yaml` 和部署配置为准。奖励混合系数、逐项环境奖励权重、优化器 loss 系数、专家样本比例以及课程采样范围是不同概念。
+
+混合系数可以写成 85%/15% 这样的配置比例，但不能代表训练过程中实际累计奖励贡献；单项 reward 的数值范围、门控、控制步长和出现频率都不同。需要实际贡献占比时，应统计同一 run 中每项加权回报，而不是把配置权重归一化成百分比。
+
+Configuration mixing coefficients are not measured reward contributions. Environment weights, optimizer coefficients, expert sampling and curriculum schedules describe different parts of training. Reproduce a saved policy with its own run snapshots.
+
+## 参考动作指导、残差控制与 PPO 系数
+
+DeepMimic 通过明确的参考误差奖励进行专家动作跟踪，训练以参考帧初始化（RSI），再由 PPO 学习参考姿态上的残差修正。全身 H 与侧滚都使用 `ReferenceJointPositionAction`：
+
+```text
+q_target = q_reference_current + 0.25 * action
+L_PPO = L_clip + 1.0*L_value - 0.005*entropy
+clip_actions = None
+fixed_action_std = True; init_noise_std = 1.0
+action_mean_l2_coef = 0.0
+```
+
+当前 runner 未启用动作硬裁剪，因此 `0.25` 是残差比例，不能声称 action 必在 [-1,1] 或 residual 必在 ±0.25 rad。H/159-D 不能混用 checkpoint，原因是输入维度、角速度坐标系和关节顺序不同，而不是参考中心残差公式不同。
+
+参考跟踪的原始权重之和为 1.75：root position 0.15、quaternion 0.15、root linear velocity 0.10、root angular velocity 0.05、key-body position 0.30、DOF position 0.80、DOF velocity 0.10。若只在这七项内部比较系数，比例依次为 8.57%、8.57%、5.71%、2.86%、17.14%、45.71%、5.71%；这仅是配置系数占比，不是含 alive/惩罚后的实际回报占比。H alive=0.20，SideRoll alive=0.05，SideRoll 另有静止段根速度惩罚 -2.0。
+
+当前 PPO 使用 32 rollout steps、5 epochs、4 mini-batches、初始 LR=1e-3（adaptive）、gamma=0.99、lambda=0.95、clip=0.2。动作均值额外 L2 系数为 0；环境 action-rate 权重 -0.001 仍有效，并在 0.25 缩放后的残差空间计算。
+
+源码相对共享框架 `lens110/legged_lab_lbot/`：`source/legged_lab/legged_lab/tasks/locomotion/deepmimic/mdp/actions.py`，`config/lens110/lens110_deepmimic_env_cfg.py`、`lens110_deepmimic_env_cfg_159.py`、`lens110_deepmimic_env_cfg_sideroll.py` 与 `agents/rsl_rl_ppo_cfg.py`（config 相对同一 deepmimic 目录）。
+
+English: H and SideRoll both use reference-centered residual actions. Current runner has no hard action clipping, fixed exploration std=1.0 and action-mean L2 coefficient=0. PPO value/entropy coefficients are 1.0/0.005. Seven tracking weights sum to 1.75, but normalizing those weights only compares configured tracking coefficients; it does not measure reward contribution. H/159-D policies differ in observation/order contracts.
+
 ## 1. 项目定位
 
 本项目是双足人形机器人的侧滚—起立一体参考动作模仿任务。它使用 100 Hz 侧滚动作和 159-D URDF-order DeepMimic policy，滚地时允许躯干横躺和身体接触，末段仍通过参考动作偏差和静止段约束把策略带回站立状态。
@@ -23,7 +53,7 @@
 
 ## 2. 原理
 
-侧滚策略每个时刻接收当前本体状态和未来 4 帧参考 root/关节姿态，直接输出 21 维参考关节目标残差/目标动作。DeepMimic 的指数跟踪项使 pelvis、关键刚体、关节位置和速度跟随侧滚参考；PPO 在接触、摩擦、质量扰动和终止条件下学习一个可执行策略。
+侧滚策略每个时刻接收当前本体状态和未来 4 帧参考 root/关节姿态，直接输出 21 维参考中心残差动作。DeepMimic 的指数跟踪项使 pelvis、关键刚体、关节位置和速度跟随侧滚参考；PPO 在接触、摩擦、质量扰动和终止条件下学习一个可执行策略。
 
 159-D 的主要差异是：
 
@@ -97,7 +127,7 @@ use_default_offset = False
 preserve_order = True
 ```
 
-这套动作是 159-D 任务专用的 ReferenceJointPositionAction。要导出或回放，policy、animation 数据、XML/URDF、动作 scale 和 joint order 必须成套，不能拿 161-D H 版 `q_ref + residual` 运行本任务。
+159-D 和 H 版均使用参考中心残差公式；二者观测、角速度坐标系和关节顺序不同，必须分别匹配训练 checkpoint、动作数据和部署配置。
 
 ## 7. Reward 函数由什么构成
 
@@ -120,7 +150,7 @@ preserve_order = True
 
 终止不是普通奖励项。侧滚显式关闭 `base_contact` 和 `bad_orientation`，因为滚地中的躯干接触/横躺是合法状态；`base_height` 下限降到 `0.02 m`。同时保留 root 和 key-body 相对参考偏差终止，阈值收紧到 `0.8 m`，这样“躺平不动”不会成为合法最优。
 
-训练随机化 static/dynamic friction 为 `0.5..1.5`，骨盆质量扰动为 `±0.5 kg`，用于覆盖 sim2sim 的滑动和负载差异。这里没有 AMP style reward，也没有 VAE loss；优化目标就是 DeepMimic task reward 加 PPO loss。
+训练随机化 static/dynamic friction 为 `0.5..1.5`，骨盆质量扰动为 `±0.5 kg`，用于覆盖 sim2sim 的滑动和负载差异。这里没有 AMP style reward，也没有 VAE loss；优化目标就是 由 DeepMimic task reward 形成回报和 advantage，再优化 PPO loss。
 
 ## 8. 训练、导出和回放
 
@@ -160,7 +190,7 @@ flowchart TD
 - [ ] 使用 159-D 任务配置和对应 159-D checkpoint。
 - [ ] 观测为 `6+3+21+21+24+84=159`，没有 foot-contact 2 维。
 - [ ] `DATASET_TO_POLICY` 和 `preserve_order=True` 生效。
-- [ ] action 为 21、scale 为 0.25，不能使用 H 版 161-D 语义。
+- [ ] action 为 21、scale 为 0.25，匹配本任务观测与关节顺序。
 - [ ] 侧滚阶段允许躯干接触/横躺，躺平漂移仍被偏差终止捕获。
 - [ ] 静止段参考速度阈值 `0.1 m/s` 与 `standing_still=-2.0` 一致。
 - [ ] MuJoCo XML、mesh、四元数、频率、joint order 和动作包一致。
